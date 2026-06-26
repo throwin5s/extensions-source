@@ -3,7 +3,7 @@ plugins {
 }
 
 keiyoushi {
-    name = "Comix"
+    name = "Comix Self Hosted"
     className = "Comix"
     versionCode = 31
     contentWarning = ContentWarning.NSFW
