@@ -52,7 +52,7 @@ class Comix :
     HttpSource(),
     ConfigurableSource {
 
-    override val name = "Comix"
+    override val name = "Comix Self Hosted"
     override val baseUrl = "https://comix.to"
     private val apiUrl = "https://comix.to/api/v1"
     override val lang = "en"
