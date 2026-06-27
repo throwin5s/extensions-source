@@ -516,6 +516,21 @@ class Comix :
         val blacklist = preferences.scanlatorBlacklist()
         val mangaSlug = manga.url.removePrefix("/")
 
+        val description = manga.description ?: ""
+        val overridePriority = if (description.contains("||suwayomi_meta:scanlatorPriority=")) {
+            description.substringAfter("||suwayomi_meta:scanlatorPriority=").substringBefore("||")
+        } else {
+            null
+        }
+
+        val usePriority = overridePriority != null || preferences.getBoolean(PREF_USE_SCANLATOR_PRIORITY, false)
+        val priorityList = if (usePriority) {
+            val priorityStr = overridePriority ?: preferences.getString(PREF_SCANLATOR_PRIORITY, "") ?: ""
+            priorityStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+        } else {
+            emptyList()
+        }
+
         val document = runBlocking {
             client.newCall(GET(getMangaUrl(manga), headers)).awaitSuccess().asJsoup()
         }
@@ -623,7 +638,7 @@ class Comix :
 
         val finalChapters: List<Chapter> = if (deduplicate) {
             val chapterMap = LinkedHashMap<Number, Chapter>()
-            deduplicateChapters(chapterMap, filteredChapters)
+            deduplicateChapters(chapterMap, filteredChapters, priorityList)
             chapterMap.values.toList()
         } else {
             filteredChapters
@@ -639,6 +654,7 @@ class Comix :
     private fun deduplicateChapters(
         chapterMap: LinkedHashMap<Number, Chapter>,
         items: List<Chapter>,
+        priorityList: List<String>,
     ) {
         for (ch in items) {
             val key = ch.number
@@ -646,20 +662,33 @@ class Comix :
             if (current == null) {
                 chapterMap[key] = ch
             } else {
-                val newIsOfficial = ch.isOfficial
-                val currentIsOfficial = current.isOfficial
-                val newIsGroup10702 = ch.group?.id == 10702
-                val currentIsGroup10702 = current.group?.id == 10702
+                val chScanlator = ch.group?.name?.trim()?.lowercase() ?: if (ch.isOfficial) "official" else ""
+                val currentScanlator = current.group?.name?.trim()?.lowercase() ?: if (current.isOfficial) "official" else ""
+
+                val chIndex = if (priorityList.contains(chScanlator)) priorityList.indexOf(chScanlator) else -1
+                val currentIndex = if (priorityList.contains(currentScanlator)) priorityList.indexOf(currentScanlator) else -1
 
                 val better = when {
-                    newIsOfficial && !currentIsOfficial -> true
-                    !newIsOfficial && currentIsOfficial -> false
-                    newIsGroup10702 && !currentIsGroup10702 -> true
-                    !newIsGroup10702 && currentIsGroup10702 -> false
-                    else -> when {
-                        ch.votes > current.votes -> true
-                        ch.votes < current.votes -> false
-                        else -> ch.id > current.id
+                    chIndex >= 0 && currentIndex >= 0 -> chIndex < currentIndex
+                    chIndex >= 0 && currentIndex < 0 -> true
+                    chIndex < 0 && currentIndex >= 0 -> false
+                    else -> {
+                        val newIsOfficial = ch.isOfficial
+                        val currentIsOfficial = current.isOfficial
+                        val newIsGroup10702 = ch.group?.id == 10702
+                        val currentIsGroup10702 = current.group?.id == 10702
+
+                        when {
+                            newIsOfficial && !currentIsOfficial -> true
+                            !newIsOfficial && currentIsOfficial -> false
+                            newIsGroup10702 && !currentIsGroup10702 -> true
+                            !newIsGroup10702 && currentIsGroup10702 -> false
+                            else -> when {
+                                ch.votes > current.votes -> true
+                                ch.votes < current.votes -> false
+                                else -> ch.id > current.id
+                            }
+                        }
                     }
                 }
                 if (better) chapterMap[key] = ch
@@ -980,14 +1009,53 @@ class Comix :
             setDefaultValue(emptySet<String>())
         }.let(screen::addPreference)
 
-        SwitchPreferenceCompat(screen.context).apply {
+        val deduplicatePref = SwitchPreferenceCompat(screen.context).apply {
             key = DEDUPLICATE_CHAPTERS
             title = "Deduplicate Chapters"
             summary = "Remove duplicate chapters from the chapter list.\n" +
                 "Official chapters (Comix-marked) are preferred, followed by the highest-voted or most recent.\n" +
                 "Warning: It can be slow on large lists."
             setDefaultValue(false)
-        }.let(screen::addPreference)
+        }.let {
+            screen.addPreference(it)
+            it
+        }
+
+        val usePriorityPref = SwitchPreferenceCompat(screen.context).apply {
+            key = PREF_USE_SCANLATOR_PRIORITY
+            title = "Use Custom Scanlator Priority"
+            summary = "Prioritize specific scanlator groups when deduplicating chapters."
+            setDefaultValue(false)
+            setEnabled(preferences.getBoolean(DEDUPLICATE_CHAPTERS, false))
+        }.let {
+            screen.addPreference(it)
+            it
+        }
+
+        val priorityPref = EditTextPreference(screen.context).apply {
+            key = PREF_SCANLATOR_PRIORITY
+            title = "Scanlator Priority List"
+            summary = "Preferred order of scanlator groups for deduplication. Comma-separated list of group names in order of preference (e.g. 'Violet Scans, Comix')."
+            dialogTitle = "Preferred Scanlator Order"
+            setDefaultValue("")
+            setEnabled(preferences.getBoolean(DEDUPLICATE_CHAPTERS, false) && preferences.getBoolean(PREF_USE_SCANLATOR_PRIORITY, false))
+        }.let {
+            screen.addPreference(it)
+            it
+        }
+
+        deduplicatePref.setOnPreferenceChangeListener { _, newValue ->
+            val deduplicateEnabled = newValue as Boolean
+            usePriorityPref.setEnabled(deduplicateEnabled)
+            priorityPref.setEnabled(deduplicateEnabled && preferences.getBoolean(PREF_USE_SCANLATOR_PRIORITY, false))
+            true
+        }
+
+        usePriorityPref.setOnPreferenceChangeListener { _, newValue ->
+            val usePriorityEnabled = newValue as Boolean
+            priorityPref.setEnabled(preferences.getBoolean(DEDUPLICATE_CHAPTERS, false) && usePriorityEnabled)
+            true
+        }
 
         EditTextPreference(screen.context).apply {
             key = PREF_SCANLATOR_BLACKLIST
@@ -1081,6 +1149,8 @@ class Comix :
         private const val PREF_BLOCKED_GENRES = "pref_blocked_genres"
         private const val LEGACY_HIDE_NSFW_PREF = "nsfw_pref"
         private const val DEDUPLICATE_CHAPTERS = "pref_deduplicate_chapters"
+        private const val PREF_USE_SCANLATOR_PRIORITY = "pref_use_scanlator_priority"
+        private const val PREF_SCANLATOR_PRIORITY = "pref_scanlator_priority"
         private const val PREF_SCANLATOR_BLACKLIST = "pref_scanlator_blacklist"
         private const val ALTERNATIVE_NAMES_IN_DESCRIPTION = "pref_alt_names_in_description"
         private const val PREF_SHOW_EXTRA_INFO = "pref_show_extra_info"
