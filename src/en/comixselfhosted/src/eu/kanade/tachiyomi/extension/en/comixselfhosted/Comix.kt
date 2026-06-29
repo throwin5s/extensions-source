@@ -104,7 +104,7 @@ class Comix :
         val isScrambled = imageUrl.contains("#scrambled")
         val isV3 = urlWithoutFragment.toHttpUrlOrNull()?.queryParameterNames?.contains("v3") == true
         val isLegacyScramble = isScrambled && !isV3
-        val requestHeaders = if (!isLegacyScramble && (isV3 || (imageHost.isNotEmpty() && !imageHost.contains("comix.to")))) {
+        val requestHeaders = if (!isLegacyScramble && (imageHost.isNotEmpty() && !imageHost.contains("comix.to"))) {
             headersBuilder()
                 .removeAll("Origin")
                 .build()
