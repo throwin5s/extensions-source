@@ -63,6 +63,7 @@ class Comix :
     private val preferences: SharedPreferences by getPreferencesLazy()
 
     override val client = network.client.newBuilder()
+        .addInterceptor(Descrambler.interceptor)
         .addInterceptor { chain ->
             val request = chain.request()
 
