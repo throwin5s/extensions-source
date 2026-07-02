@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "Comix Self Hosted 2"
-    versionCode = 35
+    versionCode = 36
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
