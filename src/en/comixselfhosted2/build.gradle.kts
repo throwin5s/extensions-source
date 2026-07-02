@@ -4,10 +4,14 @@ plugins {
 
 keiyoushi {
     name = "Comix Self Hosted 2"
-    className = "Comix"
     versionCode = 35
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
+
+    source {
+        lang = "en"
+        baseUrl = "https://comix.to"
+    }
 
     deeplink {
         host("comix.to")

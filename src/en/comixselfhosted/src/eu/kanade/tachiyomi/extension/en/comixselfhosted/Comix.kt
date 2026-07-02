@@ -53,7 +53,6 @@ class Comix :
     ConfigurableSource {
 
     private val apiUrl = "https://comix.to/api/v1"
-    override val lang = "en"
     override val supportsLatest = true
     override val supportsRelatedMangas = false
     override val disableRelatedMangasBySearch = true
