@@ -1,1 +1,0 @@
--keep class eu.kanade.tachiyomi.extension.en.comixselfhosted.Descrambler { *; }
