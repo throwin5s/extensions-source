@@ -516,15 +516,40 @@ abstract class Comix :
         val mangaSlug = manga.url.removePrefix("/")
 
         val description = manga.description ?: ""
-        val overridePriority = if (description.contains("||suwayomi_meta:scanlatorPriority=")) {
+        val priorityRaw = if (description.contains("||suwayomi_meta:scanlatorPriority=")) {
             description.substringAfter("||suwayomi_meta:scanlatorPriority=").substringBefore("||")
         } else {
             null
         }
 
-        val usePriority = overridePriority != null || preferences.getBoolean(PREF_USE_SCANLATOR_PRIORITY, false)
+        val overridePairs = if (priorityRaw != null && priorityRaw.startsWith("?")) {
+            val pipeIdx = priorityRaw.indexOf('|')
+            val pairsPart = priorityRaw.substring(1, if (pipeIdx >= 0) pipeIdx else priorityRaw.length)
+            pairsPart.split(",").mapNotNull { pair ->
+                val parts = pair.trim().split(":", limit = 2)
+                if (parts.size == 2) {
+                    val num = parts[0].trim().toDoubleOrNull()
+                    if (num != null) num to parts[1].trim().lowercase() else null
+                } else {
+                    null
+                }
+            }.toMap()
+        } else {
+            emptyMap()
+        }
+
+        val usePriority = overridePairs.isNotEmpty() || priorityRaw != null || preferences.getBoolean(PREF_USE_SCANLATOR_PRIORITY, false)
         val priorityList = if (usePriority) {
-            val priorityStr = overridePriority ?: preferences.getString(PREF_SCANLATOR_PRIORITY, "") ?: ""
+            val priorityStr = if (priorityRaw != null) {
+                if (priorityRaw.startsWith("?")) {
+                    val pipeIdx = priorityRaw.indexOf('|')
+                    if (pipeIdx >= 0) priorityRaw.substring(pipeIdx + 1) else ""
+                } else {
+                    priorityRaw
+                }
+            } else {
+                preferences.getString(PREF_SCANLATOR_PRIORITY, "") ?: ""
+            }
             priorityStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
         } else {
             emptyList()
@@ -649,9 +674,9 @@ abstract class Comix :
             allChapters
         }
 
-        val finalChapters: List<Chapter> = if (deduplicate) {
+        val finalChapters: List<Chapter> = if (deduplicate || overridePairs.isNotEmpty() || priorityRaw != null) {
             val chapterMap = LinkedHashMap<Number, Chapter>()
-            deduplicateChapters(chapterMap, filteredChapters, priorityList)
+            deduplicateChapters(chapterMap, filteredChapters, priorityList, overridePairs)
             chapterMap.values.toList()
         } else {
             filteredChapters
@@ -668,9 +693,21 @@ abstract class Comix :
         chapterMap: LinkedHashMap<Number, Chapter>,
         items: List<Chapter>,
         priorityList: List<String>,
+        overridePairs: Map<Double, String> = emptyMap(),
     ) {
         for (ch in items) {
             val key = ch.number
+            val overrideTarget = overridePairs[key]
+
+            if (overrideTarget != null) {
+                val chScanlator = ch.group?.name?.trim()?.lowercase()
+                    ?: if (ch.isOfficial) "official" else ""
+                if (chScanlator == overrideTarget) {
+                    chapterMap[key] = ch
+                }
+                continue
+            }
+
             val current = chapterMap[key]
             if (current == null) {
                 chapterMap[key] = ch
@@ -1039,7 +1076,7 @@ abstract class Comix :
             title = "Use Custom Scanlator Priority"
             summary = "Prioritize specific scanlator groups when deduplicating chapters."
             setDefaultValue(false)
-            setEnabled(preferences.getBoolean(DEDUPLICATE_CHAPTERS, false))
+            setEnabled(preferences.getBoolean(DEDUPLICATE_CHAPTERS, true))
         }.let {
             screen.addPreference(it)
             it
@@ -1114,7 +1151,7 @@ abstract class Comix :
 
     private fun SharedPreferences.posterQuality() = getString(PREF_POSTER_QUALITY, "large")
 
-    private fun SharedPreferences.deduplicateChapters() = getBoolean(DEDUPLICATE_CHAPTERS, false)
+    private fun SharedPreferences.deduplicateChapters() = getBoolean(DEDUPLICATE_CHAPTERS, true)
 
     private fun SharedPreferences.scanlatorBlacklist(): Set<String> = getString(PREF_SCANLATOR_BLACKLIST, "")
         ?.split(",")

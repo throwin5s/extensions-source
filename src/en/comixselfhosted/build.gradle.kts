@@ -1,5 +1,15 @@
+import io.github.keiyoushi.gradle.api.ContentWarning
+
 plugins {
     alias(kei.plugins.extension)
+}
+
+android {
+    buildTypes {
+        named("release") {
+            isMinifyEnabled = false
+        }
+    }
 }
 
 keiyoushi {
