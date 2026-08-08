@@ -54,7 +54,7 @@ abstract class Comix :
     HttpSource(),
     ConfigurableSource {
 
-    private val apiUrl = "https://comix.to/api/v1"
+    private val apiUrl get() = "$baseUrl/api/v1"
     override val supportsLatest = true
     override val supportsRelatedMangas = false
     override val disableRelatedMangasBySearch = true
@@ -103,7 +103,12 @@ abstract class Comix :
         val isScrambled = imageUrl.contains("#scrambled")
         val isV3 = urlWithoutFragment.toHttpUrlOrNull()?.queryParameterNames?.contains("v3") == true
         val isLegacyScramble = isScrambled && !isV3
-        val requestHeaders = if (!isLegacyScramble && (imageHost.isNotEmpty() && !imageHost.contains("comix.to"))) {
+        val baseUrlHost = baseUrl.toHttpUrl().host
+        val requestHeaders = if (
+            imageHost.isNotEmpty() &&
+            !imageHost.endsWith(baseUrlHost) &&
+            !isLegacyScramble
+        ) {
             headersBuilder()
                 .removeAll("Origin")
                 .build()
@@ -885,8 +890,11 @@ abstract class Comix :
                         val requestUrl = request.url?.toString()?.toHttpUrlOrNull()
                             ?: return super.shouldInterceptRequest(view, request)
 
-                        val allowedHost = requestUrl.host == "comix.to" ||
+                        val baseUrlHost = baseUrl.toHttpUrl().host
+                        val allowedHost = requestUrl.host.endsWith(baseUrlHost) ||
                             requestUrl.host.endsWith(".comix.to") ||
+                            requestUrl.host == "comix.to" ||
+                            requestUrl.host == "comix.ws" ||
                             requestUrl.host == "challenges.cloudflare.com"
                         if (!allowedHost) return emptyResponse
                         return super.shouldInterceptRequest(view, request)
