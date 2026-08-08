@@ -4,14 +4,6 @@ plugins {
     alias(kei.plugins.extension)
 }
 
-android {
-    buildTypes {
-        named("release") {
-            isMinifyEnabled = false
-        }
-    }
-}
-
 keiyoushi {
     name = "Comix Self Hosted"
     versionCode = 40
