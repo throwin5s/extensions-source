@@ -15,7 +15,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
-import eu.kanade.tachiyomi.util.asJsoup
+import keiyoushi.utils.asJsoup
 import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
@@ -704,7 +704,7 @@ abstract class Comix :
         return buildChapters(chapters, mangaSlug, manga)
     }
 
-    // V3 grid-scramble pages must NOT send Origin ΓÇö the server withholds X-Scramble-Seed when
+    // V3 grid-scramble pages must NOT send Origin ╬ô├ç├╢ the server withholds X-Scramble-Seed when
     // Origin is present. Legacy byte-XOR pages need Origin to receive X-Enc-Seed.
     override fun imageRequest(page: Page): Request {
         val imageUrl = page.imageUrl ?: return super.imageRequest(page)
@@ -1078,7 +1078,7 @@ abstract class Comix :
             title = "Show tags in genre chips"
             summary = "Include the site's narrative tag list (e.g. Demons, " +
                 "Vampires, Time Travel) alongside the curated genres in the " +
-                "manga details. Off by default ΓÇö the curated set matches what " +
+                "manga details. Off by default ╬ô├ç├╢ the curated set matches what " +
                 "the site itself shows on the page."
             setDefaultValue(false)
         }.let(screen::addPreference)
